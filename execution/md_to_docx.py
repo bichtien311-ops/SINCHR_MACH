@@ -23,7 +23,7 @@ import re
 from pathlib import Path
 
 from docx import Document
-from docx.shared import Pt, RGBColor
+from docx.shared import Pt, RGBColor, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 # Корень курса и папка результатов
@@ -34,6 +34,32 @@ RESULT_DIR = ROOT / "Результаты"
 
 INLINE_CODE = re.compile(r"`([^`]+)`")
 BOLD = re.compile(r"\*\*([^*]+)\*\*")
+IMAGE = re.compile(r"^!\[([^\]]*)\]\(([^)]+)\)\s*$")
+
+
+def add_image(doc: Document, caption: str, rel_path: str, base_dir) -> None:
+    """Вставить изображение с подписью. Путь ищется относительно base_dir,
+    затем относительно COURSE_DIR."""
+    candidates = []
+    if base_dir is not None:
+        candidates.append((base_dir / rel_path).resolve())
+    candidates.append((COURSE_DIR / rel_path).resolve())
+    candidates.append((ROOT / rel_path).resolve())
+    img = next((c for c in candidates if c.exists()), None)
+    if img is None:
+        p = doc.add_paragraph()
+        p.add_run(f"[рисунок не найден: {rel_path}]").italic = True
+        return
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = p.add_run()
+    run.add_picture(str(img), width=Inches(5.3))
+    if caption:
+        cap = doc.add_paragraph()
+        cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        cr = cap.add_run(caption)
+        cr.italic = True
+        cr.font.size = Pt(9)
 
 
 def add_runs(paragraph, text: str) -> None:
@@ -101,7 +127,7 @@ def parse_table_row(line: str) -> list[str]:
     return [c.strip() for c in line.strip().strip("|").split("|")]
 
 
-def render_markdown(doc: Document, md_text: str) -> None:
+def render_markdown(doc: Document, md_text: str, base_dir=None) -> None:
     """Отрисовать markdown-текст в документ Word."""
     lines = md_text.splitlines()
     i = 0
@@ -109,6 +135,13 @@ def render_markdown(doc: Document, md_text: str) -> None:
     while i < n:
         line = lines[i]
         stripped = line.strip()
+
+        # Изображение ![подпись](путь)
+        m_img = IMAGE.match(stripped)
+        if m_img:
+            add_image(doc, m_img.group(1), m_img.group(2), base_dir)
+            i += 1
+            continue
 
         # Блок кода
         if stripped.startswith("```"):
@@ -190,7 +223,7 @@ def convert_file(md_path: Path, out_path: Path) -> None:
     """Сконвертировать один markdown-файл в .docx."""
     doc = Document()
     set_base_style(doc)
-    render_markdown(doc, md_path.read_text(encoding="utf-8"))
+    render_markdown(doc, md_path.read_text(encoding="utf-8"), base_dir=md_path.parent)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     doc.save(out_path)
     print(f"  + {out_path.name}")
@@ -270,7 +303,7 @@ def build_methodichka(folders: list[Path], labs: list[Path]) -> None:
     # Программа курса (если есть) — в начало методички
     program = COURSE_DIR / "00_Программа_курса.md"
     if program.exists():
-        render_markdown(doc, program.read_text(encoding="utf-8"))
+        render_markdown(doc, program.read_text(encoding="utf-8"), base_dir=COURSE_DIR)
         doc.add_page_break()
 
     # Содержание
@@ -293,7 +326,7 @@ def build_methodichka(folders: list[Path], labs: list[Path]) -> None:
         lecture = folder / "Лекция.md"
         if not lecture.exists():
             continue
-        render_markdown(doc, lecture.read_text(encoding="utf-8"))
+        render_markdown(doc, lecture.read_text(encoding="utf-8"), base_dir=folder)
         doc.add_page_break()
         lec_count += 1
 
@@ -302,7 +335,7 @@ def build_methodichka(folders: list[Path], labs: list[Path]) -> None:
     doc.add_page_break()
     lab_count = 0
     for idx, lab in enumerate(labs):
-        render_markdown(doc, lab.read_text(encoding="utf-8"))
+        render_markdown(doc, lab.read_text(encoding="utf-8"), base_dir=lab.parent)
         if idx < len(labs) - 1:
             doc.add_page_break()
         lab_count += 1

@@ -8,3 +8,6 @@ httpx
 beautifulsoup4
 selenium
 playwright
+python-docx
+matplotlib
+numpy
