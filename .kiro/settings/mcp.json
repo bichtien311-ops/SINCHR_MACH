@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "notebooklm": {
+      "command": "C:\\Users\\Professional\\AppData\\Local\\Programs\\Python\\Python313\\Scripts\\notebooklm-mcp.exe",
+      "args": ["--transport", "stdio"],
+      "env": {
+        "NOTEBOOKLM_HL": "ru",
+        "NOTEBOOKLM_QUERY_TIMEOUT": "180"
+      },
+      "disabled": false,
+      "autoApprove": [
+        "notebook_list",
+        "notebook_query",
+        "research_status",
+        "studio_status",
+        "source_list_drive",
+        "source_get_content",
+        "refresh_auth"
+      ]
+    }
+  }
+}
